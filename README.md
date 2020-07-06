@@ -25,3 +25,5 @@ Gebruik:
 
 ## Voorbeeld: zet audio sample rate in variable ar:
 	 	ar=$(ffprobewaarden a sample_rate film.mp4)
+
+## [Meer ffprobe-tips](https://trac.ffmpeg.org/wiki/FFprobeTips)
