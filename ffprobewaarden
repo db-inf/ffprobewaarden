@@ -17,7 +17,7 @@
 ## Voorbeeld: toon alle beschikbare entries
 ##		ffprobewaarden alles film.mp4
 ##
-## Voorbeeld: toon alle beschikbare entries voor de 1ste video streams
+## Voorbeeld: toon alle beschikbare entries voor de 1ste video stream
 ##		ffprobewaarden v:0 alles film.mp4
 ##
 ## Voorbeeld: zet audio sample rate in variable ar:
