@@ -1,0 +1,43 @@
+#!/bin/bash
+[ -z "$1" -o "$1" == "-h" -o "$1" == "--help" ] && { cat; exit; } <<"Usage"
+## Toont een of meer waarden van de uitvoer van ffprobe
+##
+## Gebruik: ffprobewaarden [(a|v|V|s)[:[0-9]+]] alles|all|entry[,entry]... mediabestand
+##		(a|v|V|s)[:[0-9]+] : selecteer een type stream, of een specifieke stream van dat type, b.v.
+##			a : alle audiostreams
+##			v:0 : 1ste videostream
+##			v:1 : 2de videostream
+##			V : hoofd-videostream
+##			s : alle ondertitelstreams
+##		- als geen stream gekozen wordt, worden de gekozen entries van elke stream EN van het container format getoond
+## 		alles|all|entry[,entry]... : toon alle entries of enkel de gekozen entries van de gekozen streams en/of het container format
+##		- als slechts 1 entry gevraagd wordt, wordt enkel de waarde getoond, anders is het formaat "naam=waarde"
+##		- voeg een komma toe voor of na 1 enkele entry, om toch het formaat "naam=waarde" te gebruiken (ffprobe verdraagt dat blijkbaar)
+##
+## Voorbeeld: toon alle beschikbare entries
+##		ffprobewaarden alles film.mp4
+##
+## Voorbeeld: toon alle beschikbare entries voor de 1ste video streams
+##		ffprobewaarden v:0 alles film.mp4
+##
+## Voorbeeld: zet audio sample rate in variable ar:
+##	 	ar=$(ffprobewaarden a sample_rate film.mp4)
+Usage
+# basis-aFfprobe
+aFfprobe=(ffprobe -v error)
+# entry van stream of van container
+[[ "$1" =~ ^(V|v|a|s)(:[0-9]+)?$ ]] && { aFfprobe=("${aFfprobe[@]}" -select_streams "$1"); wrapper=stream; shift; } || wrapper=format
+# zonder [STREAM][/STREAM] of [FORMAT][/FORMAT]
+# alles om alle entries te zien
+if [ "$1" = "alles" -o "$1" = "all" ]
+then
+	aFfprobe=("${aFfprobe[@]}" -show_streams)
+	[  "$wrapper" = "format" ] && aFfprobe=("${aFfprobe[@]}" -show_format)
+else
+	outputformat="default=noprint_wrappers=1"
+	# een entry als "value", meerdere entries (gescheiden door komma) als "key=value", want kunnen volgorde entries niet bepalen
+	[ "${1%,*}" = "$1" ] && outputformat="${outputformat}:nokey=1"
+	aFfprobe=("${aFfprobe[@]}" -show_entries $wrapper="$1" -of "$outputformat")
+fi
+#echo "${aFfprobe[@]}" "$2"
+"${aFfprobe[@]}" "$2"
