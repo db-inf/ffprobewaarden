@@ -1,43 +1,111 @@
 #!/bin/bash
-[ -z "$1" -o "$1" == "-h" -o "$1" == "--help" ] && { cat; exit; } <<"Usage"
-## Toont een of meer waarden van de uitvoer van ffprobe
-##
-## Gebruik: ffprobewaarden [(a|v|V|s)[:[0-9]+]] alles|all|entry[,entry]... mediabestand
-##		(a|v|V|s)[:[0-9]+] : selecteer een type stream, of een specifieke stream van dat type, b.v.
-##			a : alle audiostreams
-##			v:0 : 1ste videostream
-##			v:1 : 2de videostream
-##			V : hoofd-videostream
-##			s : alle ondertitelstreams
-##		- als geen stream gekozen wordt, worden de gekozen entries van elke stream EN van het container format getoond
-## 		alles|all|entry[,entry]... : toon alle entries of enkel de gekozen entries van de gekozen streams en/of het container format
-##		- als slechts 1 entry gevraagd wordt, wordt enkel de waarde getoond, anders is het formaat "naam=waarde"
-##		- voeg een komma toe voor of na 1 enkele entry, om toch het formaat "naam=waarde" te gebruiken (ffprobe verdraagt dat blijkbaar)
-##
-## Voorbeeld: toon alle beschikbare entries
-##		ffprobewaarden alles film.mp4
-##
-## Voorbeeld: toon alle beschikbare entries voor de 1ste video stream
-##		ffprobewaarden v:0 alles film.mp4
-##
-## Voorbeeld: zet audio sample rate in variable ar:
-##	 	ar=$(ffprobewaarden a sample_rate film.mp4)
-Usage
-# basis-aFfprobe
-aFfprobe=(ffprobe -v error)
-# entry van stream of van container
-[[ "$1" =~ ^(V|v|a|s)(:[0-9]+)?$ ]] && { aFfprobe=("${aFfprobe[@]}" -select_streams "$1"); wrapper=stream; shift; } || wrapper=format
-# zonder [STREAM][/STREAM] of [FORMAT][/FORMAT]
-# alles om alle entries te zien
-if [ "$1" = "alles" -o "$1" = "all" ]
-then
-	aFfprobe=("${aFfprobe[@]}" -show_streams)
-	[  "$wrapper" = "format" ] && aFfprobe=("${aFfprobe[@]}" -show_format)
-else
-	outputformat="default=noprint_wrappers=1"
-	# een entry als "value", meerdere entries (gescheiden door komma) als "key=value", want kunnen volgorde entries niet bepalen
-	[ "${1%,*}" = "$1" ] && outputformat="${outputformat}:nokey=1"
-	aFfprobe=("${aFfprobe[@]}" -show_entries $wrapper="$1" -of "$outputformat")
-fi
-#echo "${aFfprobe[@]}" "$2"
-"${aFfprobe[@]}" "$2"
+##script om ffprobe-uitvoer geschikt te maken om toe te wijzen aan bash variabele
+## GEBRUIK: ffprobewaarden [streamtype[:nummer]] alles|all|sleutel[,sleutel]... bronbestand
+##          ffprobewaarden -h
+##          ffprobewaarden --help
+function main_ffprobewaarden()
+{  # met alles in een functie moeten we niet kiezen tss. return of exit, en kunnen we local variabelen gebruiken
+   # OPM: local maakt evt. externe variabelen met dezelfde naam onzichtbaar, ook voor unset. Overigens verwijdert unset
+   #  alleen de waarde van de locale naam, maar de naam blijft local, en bekend bij declare.
+ [ -z "$1" -o "$1" == "-h" -o "$1" == "--help" ] && { cat; exit; } <<-"Usage"
+	# Toont een of meer waarden van de uitvoer van ffprobe
+	#
+	# Gebruik: ffprobewaarden [(a|v|V|s)[:[0-9]+]] alles|all|entry[,entry]... mediabestand
+	#  - u|[0-9]+|(a|v|V|s)[:[0-9]+] : selecteer type stream, of specifieke stream van dat type
+	#     u : alle streams met 'usable??' configuration
+	#     9 : stream 9
+	#     a : alle audiostreams
+	#     v:0 : 1ste videostream
+	#     v:1 : 2de videostream
+	#     V : hoofd-videostream
+	#     s : alle ondertitelstreams
+	#    - als geen stream gekozen wordt, worden de gekozen waarden van het container
+	#      format getoond; als echter in dit geval alle waarden gevraagd worden, worden
+	#       zowel al die van alle streams als al die van het container format getoond.
+	#  - alles|all|naam[,naam]... : toon alle waarden of enkel de gekozen waarden van
+	#    de gekozen streams en/of het container format
+	#    - elke naam kan voorafgegaan worden door een subdirectory zoals "TAG:" of
+	#     DISPOSITION: , b.v. codec_name,TAG:language (subdirectory mag in kleine letters)
+	#    - als slechts 1 naam gevraagd wordt, wordt enkel de waarde getoond, anders is
+	#     het formaat "naam=waarde" of b.v. "TAG_language=waarde" (':' vervangen door '_')
+	#    - voeg een komma toe voor of na 1 enkele naam, om toch het formaat "naam=waarde"
+	#     te gebruiken (ffprobe verdraagt dat blijkbaar)
+	#  - de gevormde ffprobe-opdracht wordt getoond op stderr
+	#
+	# Voorbeeld: toon alle beschikbare entries
+	#   $ ffprobewaarden alles film.mp4
+	#
+	# Voorbeeld: toon alle beschikbare entries voor de 1ste video stream
+	#   $ ffprobewaarden v:0 alles film.mp4
+	#
+	# Voorbeeld: toon de bit_rate van het container format
+	#   $ ffprobewaarden bit_rate film.mp4
+	#
+	# Voorbeeld: zet codec van echte videostream in variable vc:
+	#   $ vc=$(ffprobewaarden V codec_name film.mp4)
+	#
+	# Voorbeeld: zet sample rate van alle audio streams in array ar:
+	#   $ ar=($(ffprobewaarden a sample_rate film.mp4))
+	#
+	# Voorbeeld: zet variabelen voor een aantal kenwaarden van het hoofd-video-spoor, met
+	#  een onderscheidend prefix:
+	#   $ unset video_width video_height video_codec_name video_codec_tag_string video_bit_rate
+	#   $ eval $(ffprobewaarden V width,height,codec_name,codec_tag_string,bit_rate film.mp4 | sed -E 's/^/video_/' )
+	#
+	# [Meer ffprobe-tips](https://trac.ffmpeg.org/wiki/FFprobeTips)
+	#
+	# Vereist: bash >= 4.3, ffprobe, sed, cat
+	Usage
+ local aFfprobe subdir vraag v wrapper wrapsep outputformat
+ declare -A entries
+ # basis-aFfprobe
+ aFfprobe=(ffprobe -v error)
+ # entry van individuele stream, streamtype of van container ?
+ [[ "$1" =~ ^(u|[0-9]+|(V|v|a|s|d|t)(:[0-9]+)?)$ ]] &&
+	{
+		aFfprobe+=(-select_streams "$1");
+		wrapper="stream";
+		shift;
+	} ||
+	wrapper="format"
+ ##OPM de waarde voor -show-entries kan meer wrappers met elk een lijst entry,entry,... bevatten, gescheiden door ':', b.v. "-show_entries format=naam1,naam2:stream=naam3,naam4"l die mogelijkheid wordt in dit script nog niet gebruikt
+ ##OPM voor entry-subdirectories in STREAM of FORMAT, zoals "TAG:" of "DISPOSITION:", voor -show_entries de wrappers format_tags=, stream_tags= en stream_disposition= gebruiken, b.v. "-show_entries format_tags=major_brand,minor_version:stream_disposition=karaoke,dub"
+ # zonder [STREAM][/STREAM] of [FORMAT][/FORMAT]
+ # alles om alle entries te zien
+ if [ "$1" = "alles" -o "$1" = "all" ]
+ then
+ 	# alles van gekozen stream, anders van container format, uitvoer niet geschikt als waarde voor variabele
+ 	aFfprobe+=(-show_streams)
+ 	[ "$wrapper" = "format" ] && aFfprobe+=(-show_format)
+ 	subdir=""
+ else
+	# enkel gekozen entries, die tonen we zo dat de uitvoer aan variabele kan toegewezen worden
+ 	outputformat="default=noprint_wrappers=1"
+ 	IFS=, read -a vraag <<<"$1"	#gevraagde entry-sleutels naar array vraag, gescheiden op ','
+ 	for v in "${vraag[@]}"
+ 	do	# groepeer in associatieve array per prefix zoals "TAG:" of "DISPOSITION:" (andere ???)
+		subdir="${v%%:*}"
+		[ "$subdir" = "$v" ] && subdir="$wrapper" ||
+			{	# gevraagde waarde begint met prefix TAG: o.i.d., die staat nu in $subdir
+				subdir="${subdir,,}" v="${v##*:}"	# splits op ':' en lowercase
+				[ "$subdir" = "tag" ] && subdir="$subdir"s	# TAG wordt "tags" voor -show_entries
+				subdir="$wrapper"_"${subdir}"
+			}
+		[ -n "${entries[$subdir]}" ] && entries["$subdir"]+=',' # comma-separated
+		entries["$subdir"]+="$v"
+ 	done
+ 	# één entry als "value", meerdere entries (gescheiden door komma) als "key=value", want kunnen volgorde entries niet bepalen
+ 	[ "${1%,*}" = "$1" ] && outputformat="${outputformat}:nokey=1"
+ 	aFfprobe+=(-show_entries "")
+ 	wrapsep=""	# scheiding tss. wrappers
+ 	for wrapper in "${!entries[@]}" 	# loop over keys
+ 	do
+		aFfprobe[-1]+="$wrapsep$wrapper=${entries[$wrapper]}"
+		wrapsep=":"	# scheiding tss. wrappers
+	done
+ 	aFfprobe+=(-of "$outputformat")
+ fi
+ >&2 echo "${aFfprobe[@]}" -i "'$2'"
+ "${aFfprobe[@]}" -i "$2" | sed -E 's|^([^:=]+):|\1_|'
+}
+main_ffprobewaarden "$@"
