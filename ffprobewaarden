@@ -8,7 +8,7 @@ function main_ffprobewaarden()
 {  # met alles in een functie moeten we niet kiezen tss. return of exit, en kunnen we local variabelen gebruiken
    # OPM: local maakt evt. externe variabelen met dezelfde naam onzichtbaar, ook voor unset. Overigens verwijdert unset
    #  alleen de waarde van de locale naam, maar de naam blijft local, en bekend bij declare.
- [ -z "$1" -o "$1" == "-h" -o "$1" == "--help" ] && { cat; exit; } <<-"Usage"
+ [ -z "$1" -o "$1" == "-h" -o "$1" == "--help" ] && { cat; return; } <<-"Usage"
 	. # ffprobewaarden
 	. Toont een of meer eigenschappen van een audio- of video-bestand
 	. ## Gebruik:
@@ -111,3 +111,4 @@ function main_ffprobewaarden()
  "${aFfprobe[@]}" -i "$2" | sed -E 's|^([^:=]+):|\1_|'
 }
 main_ffprobewaarden "$@"
+unset main_ffprobewaarden
