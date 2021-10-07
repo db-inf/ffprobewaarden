@@ -14,6 +14,7 @@ Toont een of meer eigenschappen van een audio- of video-bestand
   - v:1 : 2de videostream
   - V : hoofd-videostream
   - s : alle ondertitelstreams
+  - c : alle closed captions (intern aan videostream)
   - d : alle datastreams
   - t : alle bijlage-streams
 
