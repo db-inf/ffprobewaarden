@@ -25,9 +25,10 @@ function main_ffprobewaarden()
 	.   - v:1 : 2de videostream
 	.   - V : hoofd-videostream
 	.   - s : alle ondertitelstreams
+	.   - c : alle closed captions (intern aan videostream)
 	.   - d : alle datastreams
 	.   - t : alle bijlage-streams
-	. 
+	.
 	.    Als geen stream gekozen wordt, worden de gekozen waarden van het container
 	.     format getoond; als echter in dit geval alle waarden gevraagd worden, worden
 	.     zowel al die van alle streams als al die van het container format getoond.
@@ -57,15 +58,16 @@ function main_ffprobewaarden()
 	.         sed -E 's/^/video_/' )
 	. ## [Meer ffprobe-tips](https://trac.ffmpeg.org/wiki/FFprobeTips)
 	Usage
- local echo aFfprobe subdir vraag v wrapper wrapsep outputformat
+ local echo aFfprobe subdir vraag v wrapper wrapsep outputformat clcap=N
  declare -A entries
  # basis-aFfprobe
  aFfprobe=(ffprobe -v error)
  [ "$1" == "-q" -o "$1" == "--quiet" ] && { echo="true"; shift; } || echo="echo"
  # entry van individuele stream, streamtype of van container ?
- [[ "$1" =~ ^(u|[0-9]+|(a|v|V|s|d|t)(:[0-9]+)?)$ ]] &&
+ [[ "$1" =~ ^(u|[0-9]+|(a|v|V|s|d|t|c)(:[0-9]+)?)$ ]] &&
 	{
-		aFfprobe+=(-select_streams "$1");
+		aFfprobe+=(-select_streams "${1/#c/s}");
+		[ "${1::1}" = "c" ] && clcap=Y && aFfprobe+=(-f lavfi);
 		wrapper="stream";
 		shift;
 	} ||
@@ -107,8 +109,9 @@ function main_ffprobewaarden()
 	done
  	aFfprobe+=(-of "$outputformat")
  fi
- >&2 "$echo" "${aFfprobe[@]}" -i "'$2'"
- "${aFfprobe[@]}" -i "$2" | sed -E 's|^([^:=]+):|\1_|'
+	# NOTE: parameter parsing van lavfi werkt als filter: ',' scheidt filteropties, '\,' niet
+ >&2 [ "$clcap" = "Y" ] && "$echo" "${aFfprobe[@]}" -i "movie='${2//,/\\,}'[out+subcc]" ||  "$echo" "${aFfprobe[@]}" -i "'$2'"
+ { [ "$clcap" = "Y" ] && "${aFfprobe[@]}" -i "movie=${2//,/\\,}[out+subcc]" || "${aFfprobe[@]}" -i "$2" ; } | sed -E 's|^([^:=]+):|\1_|'
 }
 main_ffprobewaarden "$@"
 unset main_ffprobewaarden
