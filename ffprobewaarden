@@ -110,7 +110,7 @@ function main_ffprobewaarden()
  	aFfprobe+=(-of "$outputformat")
  fi
 	# NOTE: parameter parsing van lavfi werkt als filter: ',' scheidt filteropties, '\,' niet
- >&2 [ "$clcap" = "Y" ] && "$echo" "${aFfprobe[@]}" -i "movie='${2//,/\\,}'[out+subcc]" ||  "$echo" "${aFfprobe[@]}" -i "'$2'"
+ [ "$clcap" = "Y" ] && >&2 "$echo" "${aFfprobe[@]}" -i "movie='${2//,/\\,}'[out+subcc]" ||  >&2 "$echo" "${aFfprobe[@]}" -i "'$2'"
  { [ "$clcap" = "Y" ] && "${aFfprobe[@]}" -i "movie=${2//,/\\,}[out+subcc]" || "${aFfprobe[@]}" -i "$2" ; } | sed -E 's|^([^:=]+):|\1_|'
 }
 main_ffprobewaarden "$@"
